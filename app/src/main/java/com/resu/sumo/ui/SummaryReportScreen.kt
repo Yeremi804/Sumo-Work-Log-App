@@ -3,6 +3,7 @@ package com.resu.sumo.ui
 import android.app.Activity
 import android.content.Intent
 import android.speech.RecognizerIntent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -301,44 +303,132 @@ fun SummaryReportScreen(
             }
 
             // Entries List
+            // Entries List with Dedicated Full-Width Action Row Buttons (Never hidden by large font zoom!)
             items(viewModel.activeEntries) { entry ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${entry.dateDisplay} — ${entry.location}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Row {
-                                IconButton(onClick = {
-                                    viewModel.openEntryForm(entry)
-                                }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
-                                }
-                                IconButton(onClick = { viewModel.deleteEntry(entry.id) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${entry.dateDisplay} — ${entry.location}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         Text(
                             text = "${LanguageManager.getString("header_time", lang)}: ${entry.clockInTime} – ${entry.clockOutTime} | ${LanguageManager.getString("header_lunch", lang)}: ${entry.lunchFormatted} | Total: ${entry.netFormatted}",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         if (entry.description.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "${LanguageManager.getString("header_description", lang)}: ${entry.description}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+
+                        // Dedicated Full-Width Edit and Delete Action Row Buttons!
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { viewModel.openEntryForm(entry) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = LanguageManager.getString("edit_entry", lang),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = { viewModel.deleteEntry(entry.id) },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = LanguageManager.getString("delete_entry", lang),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Backup & Restore Card for Easy Transfer to New Phones
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "Copia de Seguridad y Transferencia a Nuevo Teléfono 💾" else "Backup & Transfer Data to New Phone 💾",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (lang == AppLanguage.SPANISH) "Guarde o restaure 'Sumo_WorkLog_Backup.json' en la carpeta Descargas." else "Save or restore 'Sumo_WorkLog_Backup.json' in your Downloads folder.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val file = viewModel.exportBackup()
+                                    val msg = if (file != null) {
+                                        if (lang == AppLanguage.SPANISH) "¡Copia guardada en Descargas!" else "Backup saved to Downloads!"
+                                    } else {
+                                        if (lang == AppLanguage.SPANISH) "Error al guardar copia" else "Failed to save backup"
+                                    }
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (lang == AppLanguage.SPANISH) "Guardar Copia 💾" else "Backup Data 💾")
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    val ok = viewModel.restoreBackup()
+                                    val msg = if (ok) {
+                                        if (lang == AppLanguage.SPANISH) "¡Datos restaurados con éxito!" else "Data restored successfully!"
+                                    } else {
+                                        if (lang == AppLanguage.SPANISH) "No se encontró Sumo_WorkLog_Backup.json en Descargas" else "Sumo_WorkLog_Backup.json not found in Downloads"
+                                    }
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (lang == AppLanguage.SPANISH) "Restaurar 📂" else "Restore Data 📂")
+                            }
                         }
                     }
                 }

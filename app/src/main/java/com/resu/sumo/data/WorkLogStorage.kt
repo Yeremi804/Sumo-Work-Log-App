@@ -2,8 +2,11 @@ package com.resu.sumo.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Environment
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 
 class WorkLogStorage(context: Context) {
     private val prefs: SharedPreferences =
@@ -20,6 +23,7 @@ class WorkLogStorage(context: Context) {
 
     fun saveWorkerName(name: String) {
         prefs.edit().putString(KEY_WORKER_NAME, name).apply()
+        autoBackup()
     }
 
     fun getWorkerName(): String {
@@ -50,6 +54,7 @@ class WorkLogStorage(context: Context) {
 
     fun saveActivePeriod(period: String) {
         prefs.edit().putString(KEY_ACTIVE_PERIOD, period).apply()
+        autoBackup()
     }
 
     fun getActivePeriod(): String {
@@ -63,6 +68,7 @@ class WorkLogStorage(context: Context) {
             array.put(entryToJson(entry))
         }
         prefs.edit().putString(KEY_ACTIVE_ENTRIES, array.toString()).apply()
+        autoBackup()
     }
 
     fun getActiveEntries(): List<WorkEntry> {
@@ -94,6 +100,7 @@ class WorkLogStorage(context: Context) {
             array.put(weeklyLogToJson(w))
         }
         prefs.edit().putString(KEY_HISTORY_WEEKS, array.toString()).apply()
+        autoBackup()
     }
 
     fun getHistoryWeeks(): List<WeeklyLog> {
@@ -118,6 +125,80 @@ class WorkLogStorage(context: Context) {
             array.put(weeklyLogToJson(w))
         }
         prefs.edit().putString(KEY_HISTORY_WEEKS, array.toString()).apply()
+        autoBackup()
+    }
+
+    private fun autoBackup() {
+        try {
+            exportBackupToDownloads()
+        } catch (e: Exception) {
+            // Ignore background auto-backup exceptions
+        }
+    }
+
+    fun exportBackupToDownloads(): File? {
+        return try {
+            val backupObj = JSONObject().apply {
+                put("workerName", getWorkerName())
+                put("activePeriod", getActivePeriod())
+                put("activeEntries", JSONArray().apply {
+                    getActiveEntries().forEach { put(entryToJson(it)) }
+                })
+                put("historyWeeks", JSONArray().apply {
+                    getHistoryWeeks().forEach { put(weeklyLogToJson(it)) }
+                })
+            }
+
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val backupFile = File(downloadsDir, "Sumo_WorkLog_Backup.json")
+            FileOutputStream(backupFile).use { out ->
+                out.write(backupObj.toString(2).toByteArray())
+            }
+            backupFile
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun restoreBackupFromDownloads(): Boolean {
+        return try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val backupFile = File(downloadsDir, "Sumo_WorkLog_Backup.json")
+            if (!backupFile.exists()) return false
+
+            val jsonStr = backupFile.readText()
+            val backupObj = JSONObject(jsonStr)
+
+            val worker = backupObj.optString("workerName", "")
+            if (worker.isNotEmpty()) saveWorkerName(worker)
+
+            val period = backupObj.optString("activePeriod", "")
+            if (period.isNotEmpty()) saveActivePeriod(period)
+
+            val activeArr = backupObj.optJSONArray("activeEntries")
+            if (activeArr != null) {
+                val list = mutableListOf<WorkEntry>()
+                for (i in 0 until activeArr.length()) {
+                    list.add(jsonToEntry(activeArr.getJSONObject(i)))
+                }
+                saveActiveEntries(list)
+            }
+
+            val historyArr = backupObj.optJSONArray("historyWeeks")
+            if (historyArr != null) {
+                val list = mutableListOf<WeeklyLog>()
+                for (i in 0 until historyArr.length()) {
+                    list.add(jsonToWeeklyLog(historyArr.getJSONObject(i)))
+                }
+                val array = JSONArray()
+                list.forEach { array.put(weeklyLogToJson(it)) }
+                prefs.edit().putString(KEY_HISTORY_WEEKS, array.toString()).apply()
+            }
+
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun entryToJson(entry: WorkEntry): JSONObject {

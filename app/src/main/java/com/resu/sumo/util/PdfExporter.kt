@@ -28,8 +28,10 @@ object PdfExporter {
     ): File? {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 portrait in points
-        val page = pdfDocument.startPage(pageInfo)
-        val canvas: Canvas = page.canvas
+
+        var currentPageIndex = 1
+        var currentPage = pdfDocument.startPage(pageInfo)
+        var canvas: Canvas = currentPage.canvas
 
         val paint = Paint().apply {
             isAntiAlias = true
@@ -39,6 +41,7 @@ object PdfExporter {
         var y = 30f
         val startX = 30f
         val pageWidth = 535f
+        val maxY = 780f
 
         val docMainTitle = LanguageManager.getString("doc_main_title", language)
         val docSubTitle = LanguageManager.getString("doc_subtitle", language)
@@ -50,132 +53,150 @@ object PdfExporter {
         val highlightBgColor = if (useColor) Color.parseColor("#D1FAE5") else Color.parseColor("#E2E8F0")
         val altRowBgColor = if (useColor) Color.parseColor("#F8FAFC") else Color.WHITE
 
-        // Title Header Banner
-        if (useColor) {
+        fun drawHeaderBanner(c: Canvas, isFirstPage: Boolean) {
+            if (isFirstPage) {
+                if (useColor) {
+                    paint.style = Paint.Style.FILL
+                    paint.color = primaryHeaderColor
+                    c.drawRect(startX, y, startX + pageWidth, y + 45f, paint)
+
+                    paint.color = Color.WHITE
+                    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    paint.textSize = 13f
+                    c.drawText(docMainTitle, startX + 12f, y + 22f, paint)
+
+                    paint.textSize = 9.5f
+                    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                    c.drawText(docSubTitle, startX + 12f, y + 36f, paint)
+                    y += 55f
+                } else {
+                    paint.color = Color.BLACK
+                    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    paint.textSize = 14f
+                    c.drawText(docMainTitle, startX, y + 15f, paint)
+                    y += 22f
+
+                    paint.textSize = 9.5f
+                    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                    c.drawText(docSubTitle, startX, y + 10f, paint)
+                    y += 25f
+                }
+
+                // Worker Name & Period Line
+                paint.color = Color.BLACK
+                paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                paint.textSize = 10f
+                val workerTitle = LanguageManager.getString("worker_name_label", language)
+                val periodTitle = LanguageManager.getString("period_label", language)
+                c.drawText("$workerTitle ${weeklyLog.workerName}", startX, y, paint)
+                c.drawText("$periodTitle ${weeklyLog.periodTitle}", startX + 320f, y, paint)
+                y += 18f
+
+                // Metrics Summary Boxes
+                val boxWidth = pageWidth / 3f
+                val boxHeight = 36f
+
+                paint.style = Paint.Style.FILL
+                // Box 1
+                paint.color = accentBgColor
+                c.drawRect(startX, y, startX + boxWidth - 4f, y + boxHeight, paint)
+                // Box 2
+                c.drawRect(startX + boxWidth + 2f, y, startX + (boxWidth * 2) - 2f, y + boxHeight, paint)
+                // Box 3 (Net Hours)
+                paint.color = highlightBgColor
+                c.drawRect(startX + (boxWidth * 2) + 4f, y, startX + pageWidth, y + boxHeight, paint)
+
+                // Borders
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 1f
+                paint.color = if (useColor) secondaryHeaderColor else Color.GRAY
+                c.drawRect(startX, y, startX + boxWidth - 4f, y + boxHeight, paint)
+                c.drawRect(startX + boxWidth + 2f, y, startX + (boxWidth * 2) - 2f, y + boxHeight, paint)
+                c.drawRect(startX + (boxWidth * 2) + 4f, y, startX + pageWidth, y + boxHeight, paint)
+
+                val labelPaint = Paint().apply {
+                    isAntiAlias = true
+                    style = Paint.Style.FILL
+                    textSize = 7.5f
+                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    color = Color.DKGRAY
+                }
+
+                val valPaint = Paint().apply {
+                    isAntiAlias = true
+                    style = Paint.Style.FILL
+                    textSize = 10.5f
+                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    color = if (useColor) primaryHeaderColor else Color.BLACK
+                }
+
+                c.drawText(LanguageManager.getString("total_property_time", language), startX + 6f, y + 12f, labelPaint)
+                c.drawText(LanguageManager.getString("lunch_deducted", language), startX + boxWidth + 8f, y + 12f, labelPaint)
+                c.drawText(LanguageManager.getString("total_hours_worked", language), startX + (boxWidth * 2) + 10f, y + 12f, labelPaint)
+
+                c.drawText(weeklyLog.totalPropertyFormatted, startX + 6f, y + 28f, valPaint)
+                c.drawText(weeklyLog.totalLunchFormatted, startX + boxWidth + 8f, y + 28f, valPaint)
+                c.drawText(weeklyLog.totalNetFormatted, startX + (boxWidth * 2) + 10f, y + 28f, valPaint)
+
+                y += boxHeight + 12f
+
+                // Policy Note
+                val notePaint = Paint().apply {
+                    isAntiAlias = true
+                    textSize = 7.5f
+                    color = Color.DKGRAY
+                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+                }
+                c.drawText(LanguageManager.getString("policy_note", language), startX, y, notePaint)
+                y += 14f
+            } else {
+                // Continuation page mini-header
+                paint.color = primaryHeaderColor
+                paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                paint.textSize = 10f
+                c.drawText("${weeklyLog.workerName} — ${weeklyLog.periodTitle} (Página $currentPageIndex)", startX, y, paint)
+                y += 16f
+            }
+
+            // Table Header Row
             paint.style = Paint.Style.FILL
-            paint.color = primaryHeaderColor
-            canvas.drawRect(startX, y, startX + pageWidth, y + 45f, paint)
+            paint.color = secondaryHeaderColor
+            c.drawRect(startX, y, startX + pageWidth, y + 18f, paint)
 
-            paint.color = Color.WHITE
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            paint.textSize = 13f
-            canvas.drawText(docMainTitle, startX + 12f, y + 22f, paint)
+            val headerPaint = Paint().apply {
+                isAntiAlias = true
+                textSize = 8f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                color = Color.WHITE
+            }
 
-            paint.textSize = 9.5f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            canvas.drawText(docSubTitle, startX + 12f, y + 36f, paint)
-            y += 55f
-        } else {
-            paint.color = Color.BLACK
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            paint.textSize = 14f
-            canvas.drawText(docMainTitle, startX, y + 15f, paint)
-            y += 22f
+            val col1 = startX + 6f   // Date
+            val col2 = startX + 70f  // Location
+            val col3 = startX + 155f // Schedule
+            val col4 = startX + 240f // Lunch
+            val col5 = startX + 290f // Hours
+            val col6 = startX + 340f // Description
 
-            paint.textSize = 9.5f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            canvas.drawText(docSubTitle, startX, y + 10f, paint)
-            y += 25f
+            val headerY = y + 12f
+            c.drawText(LanguageManager.getString("header_date", language), col1, headerY, headerPaint)
+            c.drawText(LanguageManager.getString("header_location", language), col2, headerY, headerPaint)
+            c.drawText(LanguageManager.getString("header_time", language), col3, headerY, headerPaint)
+            c.drawText(LanguageManager.getString("header_lunch", language), col4, headerY, headerPaint)
+            c.drawText(LanguageManager.getString("header_hours", language), col5, headerY, headerPaint)
+            c.drawText(LanguageManager.getString("header_description", language), col6, headerY, headerPaint)
+
+            y += 18f
         }
 
-        // Worker Name & Period Line
-        paint.color = Color.BLACK
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 10f
-        val workerTitle = LanguageManager.getString("worker_name_label", language)
-        val periodTitle = LanguageManager.getString("period_label", language)
-        canvas.drawText("$workerTitle ${weeklyLog.workerName}", startX, y, paint)
-        canvas.drawText("$periodTitle ${weeklyLog.periodTitle}", startX + 320f, y, paint)
-        y += 18f
+        drawHeaderBanner(canvas, isFirstPage = true)
 
-        // Metrics Summary Boxes
-        val boxWidth = pageWidth / 3f
-        val boxHeight = 36f
+        val col1 = startX + 6f
+        val col2 = startX + 70f
+        val col3 = startX + 155f
+        val col4 = startX + 240f
+        val col5 = startX + 290f
+        val col6 = startX + 340f
 
-        paint.style = Paint.Style.FILL
-        // Box 1
-        paint.color = accentBgColor
-        canvas.drawRect(startX, y, startX + boxWidth - 4f, y + boxHeight, paint)
-        // Box 2
-        canvas.drawRect(startX + boxWidth + 2f, y, startX + (boxWidth * 2) - 2f, y + boxHeight, paint)
-        // Box 3 (Net Hours)
-        paint.color = highlightBgColor
-        canvas.drawRect(startX + (boxWidth * 2) + 4f, y, startX + pageWidth, y + boxHeight, paint)
-
-        // Borders
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f
-        paint.color = if (useColor) secondaryHeaderColor else Color.GRAY
-        canvas.drawRect(startX, y, startX + boxWidth - 4f, y + boxHeight, paint)
-        canvas.drawRect(startX + boxWidth + 2f, y, startX + (boxWidth * 2) - 2f, y + boxHeight, paint)
-        canvas.drawRect(startX + (boxWidth * 2) + 4f, y, startX + pageWidth, y + boxHeight, paint)
-
-        val labelPaint = Paint().apply {
-            isAntiAlias = true
-            style = Paint.Style.FILL
-            textSize = 7.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            color = Color.DKGRAY
-        }
-
-        val valPaint = Paint().apply {
-            isAntiAlias = true
-            style = Paint.Style.FILL
-            textSize = 10.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            color = if (useColor) primaryHeaderColor else Color.BLACK
-        }
-
-        canvas.drawText(LanguageManager.getString("total_property_time", language), startX + 6f, y + 12f, labelPaint)
-        canvas.drawText(LanguageManager.getString("lunch_deducted", language), startX + boxWidth + 8f, y + 12f, labelPaint)
-        canvas.drawText(LanguageManager.getString("total_hours_worked", language), startX + (boxWidth * 2) + 10f, y + 12f, labelPaint)
-
-        canvas.drawText(weeklyLog.totalPropertyFormatted, startX + 6f, y + 28f, valPaint)
-        canvas.drawText(weeklyLog.totalLunchFormatted, startX + boxWidth + 8f, y + 28f, valPaint)
-        canvas.drawText(weeklyLog.totalNetFormatted, startX + (boxWidth * 2) + 10f, y + 28f, valPaint)
-
-        y += boxHeight + 12f
-
-        // Policy Note
-        val notePaint = Paint().apply {
-            isAntiAlias = true
-            textSize = 7.5f
-            color = Color.DKGRAY
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-        }
-        canvas.drawText(LanguageManager.getString("policy_note", language), startX, y, notePaint)
-        y += 14f
-
-        // Table Header
-        paint.style = Paint.Style.FILL
-        paint.color = secondaryHeaderColor
-        canvas.drawRect(startX, y, startX + pageWidth, y + 18f, paint)
-
-        val headerPaint = Paint().apply {
-            isAntiAlias = true
-            textSize = 8f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            color = Color.WHITE
-        }
-
-        val col1 = startX + 6f   // Date
-        val col2 = startX + 70f  // Location
-        val col3 = startX + 155f // Schedule
-        val col4 = startX + 240f // Lunch
-        val col5 = startX + 290f // Hours
-        val col6 = startX + 340f // Description
-
-        val headerY = y + 12f
-        canvas.drawText(LanguageManager.getString("header_date", language), col1, headerY, headerPaint)
-        canvas.drawText(LanguageManager.getString("header_location", language), col2, headerY, headerPaint)
-        canvas.drawText(LanguageManager.getString("header_time", language), col3, headerY, headerPaint)
-        canvas.drawText(LanguageManager.getString("header_lunch", language), col4, headerY, headerPaint)
-        canvas.drawText(LanguageManager.getString("header_hours", language), col5, headerY, headerPaint)
-        canvas.drawText(LanguageManager.getString("header_description", language), col6, headerY, headerPaint)
-
-        y += 18f
-
-        // Table Rows
         val rowPaint = Paint().apply {
             isAntiAlias = true
             textSize = 8f
@@ -189,12 +210,34 @@ object PdfExporter {
             color = Color.LTGRAY
         }
 
+        val footerPaint = Paint().apply {
+            isAntiAlias = true
+            textSize = 8f
+            color = Color.GRAY
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+        }
+
         val maxDescWidth = (startX + pageWidth) - col6 - 6f
         val sortedEntries = weeklyLog.entries.sortedBy { it.timestamp }
 
         for ((index, entry) in sortedEntries.withIndex()) {
             val descLines = wrapTextToLines(entry.description, rowPaint, maxDescWidth)
             val rowHeight = (descLines.size * 11f + 10f).coerceAtLeast(22f)
+
+            // Check if adding this entry exceeds max page height -> Start New Page!
+            if (y + rowHeight > maxY) {
+                // Draw footer on current page
+                canvas.drawText("Página $currentPageIndex — Sumo Work Log", startX, 815f, footerPaint)
+                pdfDocument.finishPage(currentPage)
+
+                currentPageIndex++
+                currentPage = pdfDocument.startPage(pageInfo)
+                canvas = currentPage.canvas
+                y = 30f
+
+                // Draw header on new continuation page
+                drawHeaderBanner(canvas, isFirstPage = false)
+            }
 
             // Alternating Row Background
             if (index % 2 == 1) {
@@ -220,10 +263,11 @@ object PdfExporter {
             }
 
             y += rowHeight
-            if (y > 780f) break
         }
 
-        pdfDocument.finishPage(page)
+        // Draw final page footer
+        canvas.drawText("Página $currentPageIndex — Sumo Work Log", startX, 815f, footerPaint)
+        pdfDocument.finishPage(currentPage)
 
         return try {
             val sanitizedWorker = weeklyLog.workerName.replace(" ", "_").replace("[^a-zA-Z0-9_]".toRegex(), "")

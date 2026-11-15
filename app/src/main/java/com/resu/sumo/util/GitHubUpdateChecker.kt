@@ -18,7 +18,7 @@ object GitHubUpdateChecker {
 
     // Official GitHub API endpoint for Sumo Work Log App releases
     private const val GITHUB_REPO_URL = "https://api.github.com/repos/Yeremi804/Sumo-Work-Log-App/releases/latest"
-    const val CURRENT_APP_VERSION = "1.1.0"
+    const val CURRENT_APP_VERSION = "1.0.0"
 
     suspend fun checkForUpdates(): GitHubReleaseInfo? {
         return withContext(Dispatchers.IO) {

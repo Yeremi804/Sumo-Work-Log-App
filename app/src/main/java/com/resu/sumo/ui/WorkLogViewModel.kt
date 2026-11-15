@@ -15,6 +15,7 @@ import com.resu.sumo.data.WorkLogStorage
 import com.resu.sumo.util.GitHubReleaseInfo
 import com.resu.sumo.util.GitHubUpdateChecker
 import com.resu.sumo.util.PdfExporter
+import com.resu.sumo.util.ShiftNotificationManager
 import com.resu.sumo.util.WorkLogParser
 import java.io.File
 import java.text.SimpleDateFormat
@@ -130,6 +131,17 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
             isClockedIn = true
             clockInTimestamp = ts
             clockInLocation = loc
+
+            // Check if active shift has exceeded 4 hours (e.g. part-time / full-time check)
+            val elapsedHours = ((now - ts) / (3600 * 1000L)).toInt()
+            if (elapsedHours >= 4) {
+                ShiftNotificationManager.showShiftReminderNotification(
+                    context = getApplication(),
+                    hoursElapsed = elapsedHours,
+                    location = loc.ifEmpty { "Casa del Patrón" },
+                    lang = currentLanguage
+                )
+            }
         }
 
         updateDynamicPeriodTitle()
@@ -205,6 +217,7 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
         clockInTimestamp = 0L
         clockInLocation = ""
         storage.clearActiveClockIn()
+        ShiftNotificationManager.cancelReminderNotification(getApplication())
     }
 
     fun parseAndImportParagraphText(textBlock: String): Int {
@@ -244,6 +257,18 @@ class WorkLogViewModel(application: Application) : AndroidViewModel(application)
         activeEntries = updated
         storage.saveActiveEntries(updated)
         updateDynamicPeriodTitle()
+    }
+
+    fun exportBackup(): File? {
+        return storage.exportBackupToDownloads()
+    }
+
+    fun restoreBackup(): Boolean {
+        val success = storage.restoreBackupFromDownloads()
+        if (success) {
+            loadData()
+        }
+        return success
     }
 
     fun saveCurrentWeekToDatabase() {

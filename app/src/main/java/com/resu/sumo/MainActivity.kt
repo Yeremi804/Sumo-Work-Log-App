@@ -13,10 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resu.sumo.ui.AnimatedHomeScreen
 import com.resu.sumo.ui.ClockInEntryScreen
-import com.resu.sumo.ui.EntryFormScreen
 import com.resu.sumo.ui.MainDashboard
 import com.resu.sumo.ui.PdfPreviewScreen
 import com.resu.sumo.ui.SummaryReportScreen
+import com.resu.sumo.ui.WizardEntryScreen
 import com.resu.sumo.ui.WorkLogViewModel
 import com.resu.sumo.ui.theme.SumoTheme
 
@@ -93,7 +93,7 @@ fun MainAppNav() {
                 )
             }
             Screen.ENTRY_FORM -> {
-                EntryFormScreen(
+                WizardEntryScreen(
                     viewModel = viewModel,
                     onBack = { viewModel.currentScreen = Screen.SUMMARY }
                 )
